@@ -2,7 +2,7 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "my-v0-project",
+      "name": "mctv",
       "dependencies": {
         "@hookform/resolvers": "^3.10.0",
         "@radix-ui/react-accordion": "1.2.2",

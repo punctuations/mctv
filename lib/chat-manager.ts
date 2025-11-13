@@ -5,6 +5,7 @@ import {
 } from "./twitch-client";
 import { YouTubeClient } from "./youtube-client";
 import { type Emote, emoteProviders } from "./emote-providers";
+import { wsManager } from "./websocket-manager";
 
 export interface ChatMessage {
   id: string;
@@ -147,6 +148,8 @@ class ChatManager {
     if (this.messages.length > this.maxMessages) {
       this.messages = this.messages.slice(-this.maxMessages);
     }
+
+    wsManager.notifyNewMessage(chatMessage);
   }
 
   getMessages(): ChatMessage[] {
