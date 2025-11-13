@@ -148,7 +148,7 @@ function OverlayContent() {
           >
             {showPlatformBadge && (
               <div
-                className="flex shrink-0 items-center justify-center rounded mt-2"
+                className="flex shrink-0 items-center justify-center rounded self-center"
                 style={{ height: "1em", width: "1em" }}
               >
                 {msg.platform === "twitch" ? (

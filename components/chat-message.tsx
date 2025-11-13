@@ -146,7 +146,7 @@ export function ChatMessage({
   return (
     <div className="flex items-start gap-2 rounded px-2 py-0.5 min-h-9 transition-colors hover:bg-accent/50">
       {showPlatformBadge && (
-        <div className="flex shrink-0 items-center justify-center mt-2">
+        <div className="flex shrink-0 items-center justify-center self-center">
           {platform === "twitch" ? (
             <TwitchIcon className="h-4 w-4" />
           ) : (
