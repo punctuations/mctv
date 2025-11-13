@@ -22,11 +22,11 @@ function OverlayContent() {
   const twitchChannel = searchParams.get("twitch") || "";
   const youtubeVideoId = searchParams.get("youtube") || "";
   const showPlatformBadge = searchParams.get("platformBadge") !== "false"; // defaults to true
-  const width = searchParams.get("width") || "400";
+  const width = searchParams.get("width") || "800";
   const height = searchParams.get("height") || "600";
   const fadeOutTime =
     Number.parseInt(searchParams.get("fadeOut") || "10") * 1000; // Convert to milliseconds
-  const fontSize = searchParams.get("fontSize") || "14"; // Added fontSize from query parameter
+  const fontSize = searchParams.get("fontSize") || "32"; // Added fontSize from query parameter
 
   const { messages: streamedMessages, isConnected } =
     useChatWebSocket(fadeOutTime);
@@ -147,11 +147,14 @@ function OverlayContent() {
             style={{ opacity: getMessageOpacity(msg) }}
           >
             {showPlatformBadge && (
-              <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded mt-0.5">
+              <div
+                className="flex shrink-0 items-center justify-center rounded mt-2"
+                style={{ height: "1em", width: "1em" }}
+              >
                 {msg.platform === "twitch" ? (
-                  <TwitchIcon className="h-4 w-4" />
+                  <TwitchIcon style={{ height: "1em", width: "1em" }} />
                 ) : (
-                  <YoutubeIcon className="h-4 w-4" />
+                  <YoutubeIcon style={{ height: "1em", width: "1em" }} />
                 )}
               </div>
             )}
@@ -170,7 +173,8 @@ function OverlayContent() {
                         src={badgeUrl || "/placeholder.svg"}
                         alt={badge.name}
                         title={badge.name}
-                        className="inline-block h-4 w-4 align-middle mr-0.5"
+                        className="inline-block align-middle mr-0.5"
+                        style={{ height: "1em", width: "1em" }}
                         onError={(e) => {
                           e.currentTarget.style.display = "none";
                         }}
@@ -179,7 +183,7 @@ function OverlayContent() {
                   })}
 
                 <span
-                  className="font-semibold text-sm"
+                  className="font-semibold"
                   style={{
                     color:
                       msg.color ||
@@ -191,7 +195,7 @@ function OverlayContent() {
               </div>
 
               {/* Message */}
-              <span className="text-sm leading-relaxed break-words flex-1">
+              <span className="leading-relaxed break-words flex-1">
                 {(() => {
                   const textToRender = msg.parsedMessage || msg.message;
                   const parts: any[] = [];
