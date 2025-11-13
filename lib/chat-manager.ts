@@ -44,6 +44,18 @@ class ChatManager {
     youtube: { connected: false, videoId: null },
   };
 
+  constructor() {
+    wsManager.setListenerCountChangeCallback((count) => {
+      console.log("[mctv] [ChatManager] Listener count changed:", count);
+      if (count === 0) {
+        console.log(
+          "[mctv] [ChatManager] No listeners - disconnecting all platforms",
+        );
+        this.disconnectAllPlatforms();
+      }
+    });
+  }
+
   async connectTwitch(channel: string) {
     if (this.twitchClient) {
       this.twitchClient.disconnect();
@@ -182,6 +194,23 @@ class ChatManager {
   getConnectionStatus(): ConnectionStatus {
     return this.connectionStatus;
   }
-}
 
-export const chatManager = new ChatManager();
+  private disconnectAllPlatforms() {
+    if (this.twitchClient) {
+      console.log(
+        "[mctv] [ChatManager] Disconnecting Twitch due to no listeners",
+      );
+      this.disconnectTwitch();
+    }
+    if (this.youtubeClient) {
+      console.log(
+        "[mctv] [ChatManager] Disconnecting YouTube due to no listeners",
+      );
+      this.disconnectYoutube();
+    }
+  }
+}
+// Ensure a single instance across module reloads (Next.js dev/HMR) and routes
+const globalForChat = globalThis as unknown as { chatManager?: ChatManager };
+export const chatManager = globalForChat.chatManager ??
+  (globalForChat.chatManager = new ChatManager());

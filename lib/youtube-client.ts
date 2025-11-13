@@ -1,14 +1,10 @@
-// YouTube Live Chat client
-import { parseYouTubeEmotes } from "./youtube-emotes";
-
 export class YouTubeClient {
   private videoId = "";
   private liveChatId = "";
-  private pollingInterval: NodeJS.Timeout | null = null;
   private onMessageCallback:
     | ((username: string, message: string, color: string) => void)
     | null = null;
-  private nextPageToken = "";
+  private pollingWorker: Worker | null = null;
 
   async connect(
     idOrChannel: string,
@@ -17,10 +13,21 @@ export class YouTubeClient {
   ) {
     this.onMessageCallback = onMessage;
 
+    // Build an absolute base URL for server-side fetch; use relative in browser
+    const isServer = typeof window === "undefined";
+    const baseUrl = isServer
+      ? process.env.NEXT_PUBLIC_SITE_URL ||
+        (process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : `http://localhost:${process.env.PORT || 3000}`)
+      : "";
+
     try {
       if (isChannelId) {
         const searchResponse = await fetch(
-          `/api/youtube/search-live?channelId=${idOrChannel}`,
+          `${baseUrl}/api/youtube/search-live?channelId=${
+            encodeURIComponent(idOrChannel)
+          }`,
           { method: "GET" },
         );
         const searchData = await searchResponse.json();
@@ -43,7 +50,9 @@ export class YouTubeClient {
 
       // Get live chat ID from video
       const response = await fetch(
-        `/api/youtube/livechat?videoId=${this.videoId}`,
+        `${baseUrl}/api/youtube/livechat?videoId=${
+          encodeURIComponent(this.videoId)
+        }`,
         { method: "GET" },
       );
 
@@ -51,7 +60,7 @@ export class YouTubeClient {
 
       if (data.liveChatId) {
         this.liveChatId = data.liveChatId;
-        this.startPolling();
+        this.startServerPolling();
       } else {
         throw new Error("No live chat found for this video");
       }
@@ -61,46 +70,53 @@ export class YouTubeClient {
     }
   }
 
-  private startPolling() {
-    // Poll YouTube Live Chat API for new messages
-    const poll = async () => {
-      try {
-        const url = `/api/youtube/messages?liveChatId=${this.liveChatId}${
-          this.nextPageToken ? `&pageToken=${this.nextPageToken}` : ""
-        }`;
+  private async startServerPolling() {
+    try {
+      // Build an absolute base URL for server-side fetch; use relative in browser
+      const isServer = typeof window === "undefined";
+      const baseUrl = isServer
+        ? process.env.NEXT_PUBLIC_SITE_URL ||
+          (process.env.VERCEL_URL
+            ? `https://${process.env.VERCEL_URL}`
+            : `http://localhost:${process.env.PORT || 3000}`)
+        : "";
 
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.messages && this.onMessageCallback) {
-          for (const msg of data.messages) {
-            const color = this.generateColorFromUsername(msg.authorName);
-            const parsedMessage = parseYouTubeEmotes(msg.message);
-            this.onMessageCallback(msg.authorName, parsedMessage, color);
-          }
-        }
-
-        if (data.nextPageToken) {
-          this.nextPageToken = data.nextPageToken;
-        }
-
-        // Use polling interval from response or default to 5 seconds
-        const pollingInterval = data.pollingIntervalMillis || 5000;
-        this.pollingInterval = setTimeout(poll, pollingInterval);
-      } catch (error) {
-        console.error("[mctv] YouTube polling error:", error);
-        // Retry after 5 seconds on error
-        this.pollingInterval = setTimeout(poll, 5000);
-      }
-    };
-
-    poll();
+      // Notify the server to start polling this live chat
+      await fetch(`${baseUrl}/api/youtube/start-polling`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ liveChatId: this.liveChatId }),
+      });
+      console.log(
+        "[mctv] Started server-side YouTube polling for chat:",
+        this.liveChatId,
+      );
+    } catch (error) {
+      console.error("[mctv] Failed to start YouTube polling:", error);
+    }
   }
 
-  disconnect() {
-    if (this.pollingInterval) {
-      clearTimeout(this.pollingInterval);
-      this.pollingInterval = null;
+  async disconnect() {
+    if (this.liveChatId) {
+      try {
+        // Build an absolute base URL for server-side fetch; use relative in browser
+        const isServer = typeof window === "undefined";
+        const baseUrl = isServer
+          ? process.env.NEXT_PUBLIC_SITE_URL ||
+            (process.env.VERCEL_URL
+              ? `https://${process.env.VERCEL_URL}`
+              : `http://localhost:${process.env.PORT || 3000}`)
+          : "";
+
+        await fetch(`${baseUrl}/api/youtube/stop-polling`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ liveChatId: this.liveChatId }),
+        });
+        console.log("[mctv] Stopped server-side YouTube polling");
+      } catch (error) {
+        console.error("[mctv] Failed to stop YouTube polling:", error);
+      }
     }
   }
 

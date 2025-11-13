@@ -62,6 +62,11 @@ export async function GET(request: NextRequest) {
                 }
             });
 
+            console.log(
+                "[mctv] [SERVER] SSE listener registered. Total listeners:",
+                wsManager.getListenerCount(),
+            );
+
             // Cleanup on close
             request.signal.addEventListener("abort", () => {
                 console.log("[mctv] [SERVER] SSE connection closed");

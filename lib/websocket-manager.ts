@@ -7,6 +7,7 @@ type WebSocketClient = {
 class WebSocketManager {
     private clients: Set<WebSocketClient> = new Set();
     private messageListeners: Set<(message: any) => void> = new Set();
+    private onListenerCountChange?: (count: number) => void;
 
     addClient(client: WebSocketClient) {
         this.clients.add(client);
@@ -42,18 +43,30 @@ class WebSocketManager {
         deadClients.forEach((client) => this.removeClient(client));
     }
 
-    // For chat manager to notify about new messages
+    setListenerCountChangeCallback(callback: (count: number) => void) {
+        this.onListenerCountChange = callback;
+    }
+
     onNewMessage(callback: (message: any) => void) {
         console.log(
             "[mctv] [WebSocketManager] New message listener registered. Total listeners:",
             this.messageListeners.size + 1,
         );
         this.messageListeners.add(callback);
+
+        if (this.onListenerCountChange) {
+            this.onListenerCountChange(this.messageListeners.size);
+        }
+
         return () => {
             console.log(
                 "[mctv] [WebSocketManager] Message listener unregistered",
             );
             this.messageListeners.delete(callback);
+
+            if (this.onListenerCountChange) {
+                this.onListenerCountChange(this.messageListeners.size);
+            }
         };
     }
 
@@ -85,6 +98,12 @@ class WebSocketManager {
     getClientCount(): number {
         return this.clients.size;
     }
-}
 
-export const wsManager = new WebSocketManager();
+    getListenerCount(): number {
+        return this.messageListeners.size;
+    }
+}
+// Ensure a single instance across module reloads (Next.js dev/HMR) and routes
+const globalForWS = globalThis as unknown as { wsManager?: WebSocketManager };
+export const wsManager = globalForWS.wsManager ??
+    (globalForWS.wsManager = new WebSocketManager());
