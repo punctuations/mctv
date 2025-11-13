@@ -231,7 +231,7 @@ function OverlayContent() {
                             src={lastEmoteData.url || "/placeholder.svg"}
                             alt={lastEmoteData.code}
                             title={lastEmoteData.code}
-                            className="h-7 w-auto"
+                            style={{ height: "1.5em", width: "auto" }}
                           />
                           <img
                             src={url || "/placeholder.svg"}
@@ -248,7 +248,8 @@ function OverlayContent() {
                           src={url || "/placeholder.svg"}
                           alt={code}
                           title={code}
-                          className="inline-block h-7 w-auto align-middle mx-0.5"
+                          className="inline-block align-middle mx-0.5"
+                          style={{ height: "1.5em", width: "auto" }}
                         />
                       );
                       lastEmoteData = { code, url };
