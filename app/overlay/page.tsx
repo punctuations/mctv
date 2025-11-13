@@ -146,21 +146,20 @@ function OverlayContent() {
             className="flex items-start gap-2 rounded px-2 py-0.5 transition-opacity duration-[3000ms] ease-out"
             style={{ opacity: getMessageOpacity(msg) }}
           >
-            {showPlatformBadge && (
-              <div
-                className="flex shrink-0 items-center justify-center rounded self-center"
-                style={{ height: "1em", width: "1em" }}
-              >
-                {msg.platform === "twitch" ? (
-                  <TwitchIcon style={{ height: "1em", width: "1em" }} />
-                ) : (
-                  <YoutubeIcon style={{ height: "1em", width: "1em" }} />
-                )}
-              </div>
-            )}
-
             <div className="flex-1 flex items-start flex-wrap gap-1">
               <div className="flex items-center gap-1">
+                {showPlatformBadge && (
+                  <span
+                    className="inline-flex items-center justify-center align-middle"
+                    style={{ height: "1em", width: "1em" }}
+                  >
+                    {msg.platform === "twitch" ? (
+                      <TwitchIcon style={{ height: "1em", width: "1em" }} />
+                    ) : (
+                      <YoutubeIcon style={{ height: "1em", width: "1em" }} />
+                    )}
+                  </span>
+                )}
                 {msg.badges &&
                   msg.badges.map((badge: any, idx: number) => {
                     const key = `${badge.name}-${badge.version}`;
