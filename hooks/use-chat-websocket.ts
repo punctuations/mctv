@@ -15,115 +15,183 @@ export interface ChatMessage {
     channel?: string;
 }
 
-export function useChatWebSocket(fadeOutTime: number) {
+export function useChatWebSocket(
+    fadeOutTime: number = Number.POSITIVE_INFINITY,
+) {
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [isConnected, setIsConnected] = useState(false);
-    const eventSourceRef = useRef<EventSource | null>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const reconnectAttemptsRef = useRef(0);
+    const isConnectingRef = useRef(false);
 
-    const connectSSE = useCallback(() => {
+    const connectStream = useCallback(async () => {
+        if (isConnectingRef.current) {
+            console.log("[mctv] Connection already in progress, skipping...");
+            return;
+        }
+
+        isConnectingRef.current = true;
+
         if (reconnectTimeoutRef.current) {
             clearTimeout(reconnectTimeoutRef.current);
             reconnectTimeoutRef.current = null;
         }
 
-        if (eventSourceRef.current) {
-            eventSourceRef.current.close();
-            eventSourceRef.current = null;
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
         }
 
-        console.log("[mctv] Connecting to SSE endpoint...");
+        abortControllerRef.current = new AbortController();
+        const signal = abortControllerRef.current.signal;
 
-        const eventSource = new EventSource("/api/chat/ws");
+        try {
+            console.log("[mctv] Connecting to SSE stream...");
 
-        eventSource.onopen = () => {
-            console.log("[mctv] SSE connection established");
-            setIsConnected(true);
-        };
-
-        eventSource.onerror = (error) => {
-            console.error("[mctv] SSE connection error:", {
-                readyState: eventSource.readyState,
-                error: error,
+            const response = await fetch("/api/chat/ws", {
+                method: "GET",
+                signal,
+                headers: {
+                    Accept: "text/event-stream",
+                },
             });
+
+            if (!response.ok) {
+                throw new Error(
+                    `HTTP ${response.status}: ${response.statusText}`,
+                );
+            }
+
+            if (!response.body) {
+                throw new Error("No response body");
+            }
+
+            console.log("[mctv] Stream connection established");
+            setIsConnected(true);
+            reconnectAttemptsRef.current = 0;
+            isConnectingRef.current = false;
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder();
+            let buffer = "";
+
+            while (true) {
+                const { done, value } = await reader.read();
+
+                if (done) {
+                    console.log("[mctv] Stream closed by server");
+                    break;
+                }
+
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split("\n");
+                buffer = lines.pop() || "";
+
+                for (const line of lines) {
+                    if (line.startsWith("data: ")) {
+                        const data = line.slice(6);
+                        try {
+                            const parsed = JSON.parse(data);
+
+                            if (parsed.type === "connected") {
+                                console.log(
+                                    "[mctv] Stream confirmed connected",
+                                );
+                            } else if (parsed.type === "initial") {
+                                console.log(
+                                    "[mctv] Received initial messages:",
+                                    parsed.messages.length,
+                                );
+                                const now = Date.now();
+                                const validMessages = parsed.messages.filter(
+                                    (msg: any) => {
+                                        const messageAge = now -
+                                            (msg.createdAt || now);
+                                        return messageAge < fadeOutTime;
+                                    },
+                                );
+                                setMessages(
+                                    validMessages.map((msg: any) => ({
+                                        ...msg,
+                                        timestamp: new Date(msg.timestamp),
+                                    })),
+                                );
+                            } else if (parsed.type === "new-message") {
+                                console.log(
+                                    "[mctv] Received new message:",
+                                    parsed.message.id,
+                                );
+                                const newMessage = {
+                                    ...parsed.message,
+                                    timestamp: new Date(
+                                        parsed.message.timestamp,
+                                    ),
+                                };
+                                setMessages((prev) => {
+                                    const updated = [...prev, newMessage];
+                                    const now = Date.now();
+                                    return updated.filter((msg) =>
+                                        now - (msg.createdAt || 0) < fadeOutTime
+                                    );
+                                });
+                            }
+                        } catch (error) {
+                            console.error(
+                                "[mctv] Error parsing stream data:",
+                                error,
+                                "Raw:",
+                                data,
+                            );
+                        }
+                    }
+                }
+            }
+        } catch (error: any) {
+            if (error.name === "AbortError") {
+                console.log("[mctv] Stream connection aborted");
+                return;
+            }
+
+            console.error(
+                "[mctv] Stream connection error:",
+                error.message || error,
+            );
             setIsConnected(false);
+            isConnectingRef.current = false;
 
-            eventSource.close();
-
-            if (!reconnectTimeoutRef.current) {
-                console.log("[mctv] Scheduling reconnection in 3 seconds...");
+            if (!reconnectTimeoutRef.current && !signal.aborted) {
+                reconnectAttemptsRef.current++;
+                const delay = Math.min(
+                    1000 * Math.pow(2, reconnectAttemptsRef.current),
+                    30000,
+                );
+                console.log(
+                    `[mctv] Scheduling reconnection in ${delay}ms (attempt ${reconnectAttemptsRef.current})...`,
+                );
                 reconnectTimeoutRef.current = setTimeout(() => {
                     reconnectTimeoutRef.current = null;
-                    console.log("[mctv] Attempting to reconnect SSE...");
-                    connectSSE();
-                }, 3000);
+                    console.log("[mctv] Attempting to reconnect stream...");
+                    connectStream();
+                }, delay);
             }
-        };
-
-        eventSource.onmessage = (event) => {
-            try {
-                const data = JSON.parse(event.data);
-
-                if (data.type === "connected") {
-                    console.log("[mctv] SSE confirmed connected");
-                } else if (data.type === "initial") {
-                    console.log(
-                        "[mctv] Received initial messages:",
-                        data.messages.length,
-                    );
-                    // Set initial messages
-                    const now = Date.now();
-                    const validMessages = data.messages.filter((msg: any) => {
-                        const messageAge = now - (msg.createdAt || now);
-                        return messageAge < fadeOutTime;
-                    });
-                    setMessages(
-                        validMessages.map((msg: any) => ({
-                            ...msg,
-                            timestamp: new Date(msg.timestamp),
-                        })),
-                    );
-                } else if (data.type === "new-message") {
-                    console.log(
-                        "[mctv] Received new message:",
-                        data.message.id,
-                    );
-                    // Add new message
-                    const newMessage = {
-                        ...data.message,
-                        timestamp: new Date(data.message.timestamp),
-                    };
-                    setMessages((prev) => {
-                        const updated = [...prev, newMessage];
-                        // Keep only messages within fade out time
-                        const now = Date.now();
-                        return updated.filter((msg) =>
-                            now - (msg.createdAt || 0) < fadeOutTime
-                        );
-                    });
-                }
-            } catch (error) {
-                console.error("[mctv] Error parsing SSE message:", error);
-            }
-        };
-
-        eventSourceRef.current = eventSource;
+        }
     }, [fadeOutTime]);
 
     useEffect(() => {
-        connectSSE();
+        connectStream();
 
         return () => {
+            console.log("[mctv] Cleaning up stream connection");
             if (reconnectTimeoutRef.current) {
                 clearTimeout(reconnectTimeoutRef.current);
             }
-            if (eventSourceRef.current) {
-                eventSourceRef.current.close();
+            if (abortControllerRef.current) {
+                abortControllerRef.current.abort();
             }
+            isConnectingRef.current = false;
         };
-    }, [connectSSE]);
+    }, [connectStream]);
 
-    // Cleanup old messages periodically
     useEffect(() => {
         const interval = setInterval(() => {
             const now = Date.now();

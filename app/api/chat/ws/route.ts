@@ -2,6 +2,8 @@ import type { NextRequest } from "next/server";
 import { chatManager } from "@/lib/chat-manager";
 import { wsManager } from "@/lib/websocket-manager";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
     const encoder = new TextEncoder();
 
@@ -80,6 +82,20 @@ export async function GET(request: NextRequest) {
             "Cache-Control": "no-cache, no-transform",
             Connection: "keep-alive",
             "X-Accel-Buffering": "no", // Disable nginx buffering
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
+        },
+    });
+}
+
+export async function OPTIONS() {
+    return new Response(null, {
+        status: 204,
+        headers: {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, OPTIONS",
+            "Access-Control-Allow-Headers": "Content-Type",
         },
     });
 }

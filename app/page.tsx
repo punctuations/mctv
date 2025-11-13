@@ -1,99 +1,124 @@
-"use client"
+"use client";
 
-import { useState, useEffect, useRef } from "react"
-import { Card } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { ScrollArea } from "@/components/ui/scroll-area"
-import { TwitchIcon } from "@/components/twitch-icon"
-import { YoutubeIcon } from "@/components/youtube-icon"
-import ChatMessageComponent from "@/components/chat-message"
-import { preloadBadges } from "@/lib/badge-ids"
+import { useState, useEffect, useRef } from "react";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { TwitchIcon } from "@/components/twitch-icon";
+import { YoutubeIcon } from "@/components/youtube-icon";
+import ChatMessageComponent from "@/components/chat-message";
+import { preloadBadges } from "@/lib/badge-ids";
+import { useChatWebSocket } from "@/hooks/use-chat-websocket";
 
 interface ChatMessage {
-  id: string
-  platform: "twitch" | "youtube"
-  username: string
-  message: string
-  parsedMessage?: string
-  timestamp: Date
-  badges?: string[]
-  color?: string
-  channel?: string // Added channel field
+  id: string;
+  platform: "twitch" | "youtube";
+  username: string;
+  message: string;
+  parsedMessage?: string;
+  timestamp: Date;
+  badges?: string[];
+  color?: string;
+  channel?: string; // Added channel field
 }
 
 export default function MultiChatPage() {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [twitchChannel, setTwitchChannel] = useState("")
-  const [youtubeChannelId, setYoutubeChannelId] = useState("")
-  const [isConnectedTwitch, setIsConnectedTwitch] = useState(false)
-  const [isConnectedYoutube, setIsConnectedYoutube] = useState(false)
-  const [showPlatformBadges, setShowPlatformBadges] = useState(true)
-  const [isConnectingTwitch, setIsConnectingTwitch] = useState(false)
-  const [isConnectingYoutube, setIsConnectingYoutube] = useState(false)
-  const [copiedOverlay, setCopiedOverlay] = useState(false)
-  const [chatboxWidth, setChatboxWidth] = useState("400")
-  const [chatboxHeight, setChatboxHeight] = useState("600")
-  const [fadeOutTime, setFadeOutTime] = useState("10")
-  const [fontSize, setFontSize] = useState("14") // Added font size state
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [twitchChannel, setTwitchChannel] = useState("");
+  const [youtubeChannelId, setYoutubeChannelId] = useState("");
+  const [isConnectedTwitch, setIsConnectedTwitch] = useState(false);
+  const [isConnectedYoutube, setIsConnectedYoutube] = useState(false);
+  const [showPlatformBadges, setShowPlatformBadges] = useState(true);
+  const [isConnectingTwitch, setIsConnectingTwitch] = useState(false);
+  const [isConnectingYoutube, setIsConnectingYoutube] = useState(false);
+  const [copiedOverlay, setCopiedOverlay] = useState(false);
+  const [chatboxWidth, setChatboxWidth] = useState("800");
+  const [chatboxHeight, setChatboxHeight] = useState("600");
+  const [fadeOutTime, setFadeOutTime] = useState("10");
+  const [fontSize, setFontSize] = useState("32"); // Added font size state
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  const { messages: sseMessages } = useChatWebSocket(Number.POSITIVE_INFINITY);
 
   useEffect(() => {
-    preloadBadges()
-  }, [])
+    console.log(
+      "[mctv] Dashboard received messages from SSE:",
+      sseMessages.length
+    );
+    if (sseMessages.length > 0) {
+      console.log(
+        "[mctv] Latest message:",
+        sseMessages[sseMessages.length - 1]
+      );
+      setMessages(
+        sseMessages.map((msg) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp),
+        }))
+      );
+    }
+  }, [sseMessages]);
+
+  useEffect(() => {
+    preloadBadges();
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTop = scrollRef.current.scrollHeight
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages])
+  }, [messages]);
 
   const connectTwitch = async () => {
-    if (!twitchChannel.trim() || isConnectingTwitch) return
+    if (!twitchChannel.trim() || isConnectingTwitch) return;
 
-    setIsConnectingTwitch(true)
+    setIsConnectingTwitch(true);
     try {
       const response = await fetch("/api/chat/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platform: "twitch", channel: twitchChannel }),
-      })
+      });
 
       if (response.ok) {
-        setIsConnectedTwitch(true)
+        setIsConnectedTwitch(true);
       }
     } catch (error) {
-      console.error("Failed to connect to Twitch:", error)
+      console.error("Failed to connect to Twitch:", error);
     } finally {
-      setIsConnectingTwitch(false)
+      setIsConnectingTwitch(false);
     }
-  }
+  };
 
   const connectYoutube = async () => {
-    if (!youtubeChannelId.trim() || isConnectingYoutube) return
+    if (!youtubeChannelId.trim() || isConnectingYoutube) return;
 
-    setIsConnectingYoutube(true)
+    setIsConnectingYoutube(true);
     try {
       const response = await fetch("/api/chat/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ platform: "youtube", channelId: youtubeChannelId }),
-      })
+        body: JSON.stringify({
+          platform: "youtube",
+          channelId: youtubeChannelId,
+        }),
+      });
 
       if (response.ok) {
-        setIsConnectedYoutube(true)
+        setIsConnectedYoutube(true);
       } else {
-        const data = await response.json()
-        alert(data.error || "Failed to connect to YouTube")
+        const data = await response.json();
+        alert(data.error || "Failed to connect to YouTube");
       }
     } catch (error) {
-      console.error("Failed to connect to YouTube:", error)
-      alert("Failed to connect to YouTube")
+      console.error("Failed to connect to YouTube:", error);
+      alert("Failed to connect to YouTube");
     } finally {
-      setIsConnectingYoutube(false)
+      setIsConnectingYoutube(false);
     }
-  }
+  };
 
   const disconnect = async (platform: "twitch" | "youtube") => {
     try {
@@ -101,57 +126,37 @@ export default function MultiChatPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ platform }),
-      })
+      });
 
       if (platform === "twitch") {
-        setIsConnectedTwitch(false)
-        setTwitchChannel("")
+        setIsConnectedTwitch(false);
+        setTwitchChannel("");
       } else {
-        setIsConnectedYoutube(false)
-        setYoutubeChannelId("")
+        setIsConnectedYoutube(false);
+        setYoutubeChannelId("");
       }
     } catch (error) {
-      console.error(`Failed to disconnect from ${platform}:`, error)
+      console.error(`Failed to disconnect from ${platform}:`, error);
     }
-  }
-
-  useEffect(() => {
-    const pollMessages = async () => {
-      try {
-        const response = await fetch("/api/chat/messages")
-        const data = await response.json()
-
-        if (data.messages) {
-          setMessages(
-            data.messages.map((msg: any) => ({
-              ...msg,
-              timestamp: new Date(msg.timestamp),
-            })),
-          )
-        }
-      } catch (error) {
-        console.error("Failed to fetch messages:", error)
-      }
-    }
-
-    const interval = setInterval(pollMessages, 1000)
-    return () => clearInterval(interval)
-  }, [isConnectedTwitch, isConnectedYoutube])
+  };
 
   const copyOverlayLink = () => {
-    const overlayUrl = `${window.location.origin}/overlay?twitch=${twitchChannel}&youtubeChannel=${youtubeChannelId}&platformBadge=${showPlatformBadges}&width=${chatboxWidth}&height=${chatboxHeight}&fadeOut=${fadeOutTime}&fontSize=${fontSize}`
-    navigator.clipboard.writeText(overlayUrl)
-    setCopiedOverlay(true)
-    setTimeout(() => setCopiedOverlay(false), 2000)
-  }
+    const overlayUrl = `${window.location.origin}/overlay?twitch=${twitchChannel}&youtubeChannel=${youtubeChannelId}&platformBadge=${showPlatformBadges}&width=${chatboxWidth}&height=${chatboxHeight}&fadeOut=${fadeOutTime}&fontSize=${fontSize}`;
+    navigator.clipboard.writeText(overlayUrl);
+    setCopiedOverlay(true);
+    setTimeout(() => setCopiedOverlay(false), 2000);
+  };
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
       <div className="mx-auto max-w-7xl space-y-6">
         <div className="space-y-2">
-          <h1 className="text-4xl font-bold tracking-tight text-balance">MultiChat Dashboard</h1>
+          <h1 className="text-4xl font-bold tracking-tight text-balance">
+            MultiChat Dashboard
+          </h1>
           <p className="text-muted-foreground text-pretty">
-            Connect to Twitch and YouTube chat streams with 7TV, BTTV, and FrankerFaceZ emote support
+            Connect to Twitch and YouTube chat streams with 7TV, BTTV, and
+            FrankerFaceZ emote support
           </p>
         </div>
 
@@ -163,10 +168,14 @@ export default function MultiChatPage() {
               </div>
               <div>
                 <h3 className="font-semibold">Twitch Chat</h3>
-                <p className="text-sm text-muted-foreground">Connect to a channel</p>
+                <p className="text-sm text-muted-foreground">
+                  Connect to a channel
+                </p>
               </div>
               {isConnectedTwitch && (
-                <Badge className="ml-auto bg-[#9147FF] text-white hover:bg-[#9147FF]/90">Connected</Badge>
+                <Badge className="ml-auto bg-[#9147FF] text-white hover:bg-[#9147FF]/90">
+                  Connected
+                </Badge>
               )}
             </div>
 
@@ -190,9 +199,17 @@ export default function MultiChatPage() {
             ) : (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  Channel: <span className="font-medium text-foreground">{twitchChannel}</span>
+                  Channel:{" "}
+                  <span className="font-medium text-foreground">
+                    {twitchChannel}
+                  </span>
                 </span>
-                <Button variant="outline" size="sm" onClick={() => disconnect("twitch")} className="cursor-pointer">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => disconnect("twitch")}
+                  className="cursor-pointer"
+                >
                   Disconnect
                 </Button>
               </div>
@@ -206,10 +223,14 @@ export default function MultiChatPage() {
               </div>
               <div>
                 <h3 className="font-semibold">YouTube Chat</h3>
-                <p className="text-sm text-muted-foreground">Connect to a channel</p>
+                <p className="text-sm text-muted-foreground">
+                  Connect to a channel
+                </p>
               </div>
               {isConnectedYoutube && (
-                <Badge className="ml-auto bg-[#FF0000] text-white hover:bg-[#FF0000]/90">Connected</Badge>
+                <Badge className="ml-auto bg-[#FF0000] text-white hover:bg-[#FF0000]/90">
+                  Connected
+                </Badge>
               )}
             </div>
 
@@ -233,9 +254,17 @@ export default function MultiChatPage() {
             ) : (
               <div className="flex items-center justify-between">
                 <span className="text-sm text-muted-foreground">
-                  Channel: <span className="font-medium text-foreground">{youtubeChannelId}</span>
+                  Channel:{" "}
+                  <span className="font-medium text-foreground">
+                    {youtubeChannelId}
+                  </span>
                 </span>
-                <Button variant="outline" size="sm" onClick={() => disconnect("youtube")} className="cursor-pointer">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => disconnect("youtube")}
+                  className="cursor-pointer"
+                >
                   Disconnect
                 </Button>
               </div>
@@ -256,18 +285,29 @@ export default function MultiChatPage() {
                 {showPlatformBadges ? "Hide" : "Show"} Platform Badges
               </Button>
               {(isConnectedTwitch || isConnectedYoutube) && (
-                <Button variant="outline" size="sm" onClick={copyOverlayLink} className="cursor-pointer bg-transparent">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={copyOverlayLink}
+                  className="cursor-pointer bg-transparent"
+                >
                   {copiedOverlay ? "Copied!" : "Copy Overlay Link"}
                 </Button>
               )}
               {isConnectedTwitch && (
-                <Badge variant="outline" className="border-[#9147FF] text-[#9147FF]">
+                <Badge
+                  variant="outline"
+                  className="border-[#9147FF] text-[#9147FF]"
+                >
                   <TwitchIcon className="mr-1 h-4 w-4" />
                   Twitch
                 </Badge>
               )}
               {isConnectedYoutube && (
-                <Badge variant="outline" className="border-[#FF0000] text-[#FF0000]">
+                <Badge
+                  variant="outline"
+                  className="border-[#FF0000] text-[#FF0000]"
+                >
                   <YoutubeIcon className="mr-1 h-4 w-4" />
                   YouTube
                 </Badge>
@@ -352,8 +392,8 @@ export default function MultiChatPage() {
                     badges={msg.badges}
                     color={msg.color}
                     showPlatformBadge={showPlatformBadges}
-                    channel={msg.channel} // Pass channel prop
-                    fontSize={fontSize} // Pass fontSize prop
+                    channel={msg.channel}
+                    fontSize={fontSize}
                   />
                 ))
               )}
@@ -362,5 +402,5 @@ export default function MultiChatPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

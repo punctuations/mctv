@@ -9,7 +9,7 @@ import {
   preloadBadges,
   preloadChannelBadges,
 } from "@/lib/badge-ids";
-import { useChatPolling } from "@/hooks/use-chat-polling";
+import { useChatWebSocket } from "@/hooks/use-chat-websocket";
 
 function OverlayContent() {
   const searchParams = useSearchParams();
@@ -28,15 +28,12 @@ function OverlayContent() {
     Number.parseInt(searchParams.get("fadeOut") || "10") * 1000; // Convert to milliseconds
   const fontSize = searchParams.get("fontSize") || "14"; // Added fontSize from query parameter
 
-  const { messages: polledMessages, isConnected } = useChatPolling({
-    fadeOutTime,
-    pollInterval: 2000, // Poll every 2 seconds
-    enabled: !!(twitchChannel || youtubeVideoId), // Only poll when connected
-  });
+  const { messages: streamedMessages, isConnected } =
+    useChatWebSocket(fadeOutTime);
 
   useEffect(() => {
-    setMessages(polledMessages);
-  }, [polledMessages]);
+    setMessages(streamedMessages);
+  }, [streamedMessages]);
 
   useEffect(() => {
     if (scrollRef.current) {

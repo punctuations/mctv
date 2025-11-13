@@ -120,6 +120,12 @@ class ChatManager {
     color?: string,
     twitchEmotes?: TwitchEmote[],
   ) {
+    console.log("[mctv] [ChatManager] New message received:", {
+      platform,
+      username,
+      message,
+    });
+
     const parsedMessage = platform === "twitch"
       ? emoteProviders.parseEmotesWithTwitchNative(
         message,
@@ -149,6 +155,10 @@ class ChatManager {
       this.messages = this.messages.slice(-this.maxMessages);
     }
 
+    console.log(
+      "[mctv] [ChatManager] Notifying WebSocket manager, total messages:",
+      this.messages.length,
+    );
     wsManager.notifyNewMessage(chatMessage);
   }
 

@@ -44,12 +44,42 @@ class WebSocketManager {
 
     // For chat manager to notify about new messages
     onNewMessage(callback: (message: any) => void) {
+        console.log(
+            "[mctv] [WebSocketManager] New message listener registered. Total listeners:",
+            this.messageListeners.size + 1,
+        );
         this.messageListeners.add(callback);
-        return () => this.messageListeners.delete(callback);
+        return () => {
+            console.log(
+                "[mctv] [WebSocketManager] Message listener unregistered",
+            );
+            this.messageListeners.delete(callback);
+        };
     }
 
     notifyNewMessage(message: any) {
+        console.log(
+            "[mctv] [WebSocketManager] Notifying new message to",
+            this.messageListeners.size,
+            "listeners and",
+            this.clients.size,
+            "WebSocket clients",
+        );
+
+        // Broadcast to WebSocket clients (if any)
         this.broadcast({ type: "new-message", message });
+
+        // Notify SSE listeners
+        this.messageListeners.forEach((listener) => {
+            try {
+                listener(message);
+            } catch (error) {
+                console.error(
+                    "[mctv] [WebSocketManager] Error notifying listener:",
+                    error,
+                );
+            }
+        });
     }
 
     getClientCount(): number {
